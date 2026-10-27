@@ -216,4 +216,6 @@ tests/              end-to-end API tests, including payments and refunds
 
 ## License
 
-FLUX.1 schnell is Apache-2.0. BiRefNet and Microsoft TRELLIS.2 are MIT. Those licenses cover the models, which you call through fal.ai. They do not license this application. The Chat3D source in this repository is published by its authors. Add a `LICENSE` file before you treat the application itself as open source.
+This application is [MIT licensed](LICENSE). Copyright (c) 2026 MeeraAI Tech Solutions LLP.
+
+The models it calls have their own terms: FLUX.1 schnell is Apache-2.0, and BiRefNet and Microsoft TRELLIS.2 are MIT. Those cover the models on fal.ai.
