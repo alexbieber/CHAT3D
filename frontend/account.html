@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Account — {{APP_NAME}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site.css">
+<style>
+  .page { padding: 40px 0; display: grid; gap: 20px; }
+  .top { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+  .top h1 { margin: 0; font-size: 2.2rem; font-weight: 800; letter-spacing: -0.035em; }
+  .balance { display: flex; align-items: center; gap: 18px; }
+  .balance .n { font-size: 3rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .newkey { display: flex; gap: 8px; margin-bottom: 14px; }
+  .reveal { background: #FFF6E0; border: 1px solid #F2D58C; color: #4A3200; border-radius: var(--radius-s); padding: 12px; margin-bottom: 14px; }
+  .reveal code { display: block; word-break: break-all; background: #fff; padding: 8px; border-radius: 4px; margin: 8px 0; font-size: .85rem; color: #18202B; }
+  .amt-pos { color: var(--ok); } .amt-neg { color: var(--ink); }
+  @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="nav" id="nav"></header>
+<main class="wrap page">
+  <div class="top">
+    <div><h1>Account</h1><p class="muted" id="who" style="margin:6px 0 0"></p></div>
+    <div class="balance"><div><div class="n" id="bal">–</div><div class="muted">credits</div></div><a class="btn primary" href="/pricing">Buy credits</a></div>
+  </div>
+
+  <div class="two">
+    <section class="panel">
+      <h2>Purchases</h2>
+      <div class="table-scroll"><table class="data"><thead><tr><th>Date</th><th>Credits</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody id="pay-rows"></tbody></table></div>
+    </section>
+    <section class="panel">
+      <h2>Credit history</h2>
+      <div class="table-scroll" style="max-height:340px;overflow-y:auto"><table class="data"><thead><tr><th>Date</th><th>What</th><th class="num">Change</th><th class="num">Balance</th></tr></thead><tbody id="txn-rows"></tbody></table></div>
+    </section>
+  </div>
+
+  <section class="panel" id="keys">
+    <h2>API keys</h2>
+    <p class="muted" style="margin-top:-6px">Keys let your own apps call the <a href="/developers">API</a>. Usage is billed from your credits. Treat keys like passwords.</p>
+    <div id="reveal" class="reveal" hidden></div>
+    <form class="newkey" id="key-form"><label class="sr" for="key-name">Key name</label>
+      <input type="text" id="key-name" placeholder="Name, e.g. Production server" maxlength="80" required>
+      <button class="btn primary" type="submit">Create key</button></form>
+    <div class="table-scroll"><table class="data"><thead><tr><th>Name</th><th>Key</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody id="key-rows"></tbody></table></div>
+  </section>
+
+  <section class="panel" style="max-width:520px">
+    <h2>Change password</h2>
+    <form id="pw-form">
+      <label class="field"><span>Current password</span><input type="password" name="current_password" autocomplete="current-password" required></label>
+      <label class="field"><span>New password</span><input type="password" name="new_password" autocomplete="new-password" minlength="8" required></label>
+      <button class="btn ghost" type="submit">Update password</button>
+      <p class="muted" style="font-size:.88rem">This signs you out on your other devices.</p>
+    </form>
+    <p class="muted" style="font-size:.9rem;margin:18px 0 0">To delete your account and data, email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> from this address.</p>
+  </section>
+</main>
+<footer class="footer" id="footer"></footer>
+<script src="/static/common.js"></script>
+<script>
+const KIND = { signup: "Welcome credits", purchase: "Purchase", spend: "Used", refund: "Refund", admin: "Adjustment" };
+const PSTAT = { paid: '<span class="badge ok">Paid</span>', failed: '<span class="badge bad">Failed</span>', refunded: '<span class="badge">Refunded</span>' };
+async function loadAll() {
+  const [me, pays, txns, keys] = await Promise.all([api("/api/auth/me"), api("/api/billing/payments"),
+    api("/api/credits/history?limit=100"), api("/api/keys")]);
+  $("#bal").textContent = me.credits; setCredits(me.credits);
+  $("#who").textContent = `${me.name ? me.name + " · " : ""}${me.email}`;
+  $("#pay-rows").innerHTML = pays.items.length ? pays.items.map((p) => `<tr><td>${fmtDate(p.created_at)}</td><td>${p.credits}</td>
+      <td class="num">${esc(p.amount_display)}</td><td>${PSTAT[p.status] || esc(p.status)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="empty-note">No purchases yet.</td></tr>`;
+  $("#txn-rows").innerHTML = txns.items.map((t) => `<tr><td>${fmtDate(t.created_at)}</td><td>${esc(t.note || KIND[t.kind])}</td>
+      <td class="num ${t.amount > 0 ? "amt-pos" : "amt-neg"}">${t.amount > 0 ? "+" : ""}${t.amount}</td><td class="num">${t.balance_after}</td></tr>`).join("");
+  $("#key-rows").innerHTML = keys.items.length ? keys.items.map((k) => `<tr><td>${esc(k.name)}</td><td><code>${esc(k.prefix)}…</code></td>
+      <td>${fmtDate(k.created_at)}</td><td>${k.last_used_at ? fmtDate(k.last_used_at) : "Never"}</td>
+      <td class="num"><button class="btn danger small" data-revoke="${k.id}">Revoke</button></td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty-note">No keys yet.</td></tr>`;
+  $$("[data-revoke]").forEach((b) => (b.onclick = async () => {
+    if (!confirm("Revoke this key? Apps using it will stop working immediately.")) return;
+    await api(`/api/keys/${b.dataset.revoke}`, { method: "DELETE" }); toast("Key revoked.", true); loadAll();
+  }));
+}
+(async () => {
+  try { await boot({ active: "/account", requireAuth: true }); } catch { return; }
+  const qs = new URLSearchParams(location.search);
+  if (qs.get("checkout") === "stripe" && qs.get("session_id")) {
+    try {
+      const r = await api("/api/billing/stripe/confirm", { method: "POST", json: { session_id: qs.get("session_id") } });
+      if (r.payment?.status === "paid") toast(`Payment received. ${r.payment.credits} credits added.`, true);
+      else toast("Payment is processing. Credits appear here as soon as Stripe confirms.", true);
+    } catch (e) { toast(e.message); }
+    history.replaceState(null, "", "/account");
+  }
+  await loadAll();
+  if (location.hash === "#keys") $("#keys").scrollIntoView();
+
+  $("#key-form").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const k = await api("/api/keys", { method: "POST", json: { name: $("#key-name").value } });
+      $("#reveal").innerHTML = `<strong>Copy your new key now.</strong> You won't be able to see it again.<code id="newkey">${esc(k.key)}</code>
+        <button class="btn ghost small" type="button" id="copy-key">Copy</button>`;
+      $("#reveal").hidden = false; $("#key-name").value = "";
+      $("#copy-key").onclick = async () => { await navigator.clipboard.writeText(k.key); toast("Key copied.", true); };
+      loadAll();
+    } catch (err) { toast(err.message); }
+  };
+  $("#pw-form").onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api("/api/auth/change-password", { method: "POST", json: Object.fromEntries(new FormData(e.target)) }); e.target.reset(); toast("Password updated.", true); }
+    catch (err) { toast(err.message); }
+  };
+})();
+</script>
+</body>
+</html>

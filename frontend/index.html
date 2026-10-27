@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{APP_NAME}} — turn an idea or a photo into a 3D model</title>
+<meta name="description" content="Describe an object or upload a photo and get a textured, game-ready GLB in about two minutes. Powered by Microsoft TRELLIS.2.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site.css">
+<script type="module" src="/static/vendor/model-viewer.min.js"></script>
+<style>
+  .hero { padding: 64px 0 40px; }
+  .hero .wrap { display: grid; grid-template-columns: 1fr 1.15fr; gap: 48px; align-items: center; }
+  .hero h1 { font-size: clamp(2.6rem, 5.4vw, 4.4rem); font-weight: 800; letter-spacing: -0.045em; line-height: 0.98; margin: 0 0 20px; font-variation-settings: "opsz" 96; }
+  .hero p.lede { font-size: 1.2rem; color: var(--muted); max-width: 34ch; margin: 0 0 28px; }
+  .hero .ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+  .hero .fine { margin-top: 14px; font-size: .9rem; color: var(--muted); }
+
+  /* The pipeline strip: prompt -> image -> model, the product in one glance */
+  .pipeline { position: relative; display: grid; grid-template-columns: 0.9fr 1fr; grid-template-rows: auto 1fr; gap: 14px; }
+  .pipeline .prompt { grid-column: 1 / -1; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 14px 16px; font-size: 1.02rem; display: flex; gap: 10px; align-items: baseline; }
+  .pipeline .prompt b { color: var(--muted); font-weight: 500; font-size: .85rem; }
+  .pipeline .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--cobalt); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .pipeline figure { margin: 0; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); overflow: hidden; display: grid; grid-template-rows: 1fr auto; }
+  .pipeline figure img { width: 100%; height: 100%; min-height: 0; object-fit: contain; background: #fff; display: block; }
+  .pipeline figcaption { font-size: .85rem; color: var(--muted); padding: 8px 12px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; }
+  .pipeline .stage3d { background: radial-gradient(120% 90% at 50% 30%, var(--cyc) 35%, var(--cyc-deep) 100%); }
+  .pipeline model-viewer { width: 100%; height: 100%; min-height: 300px; --poster-color: transparent; }
+  .approved { color: var(--ok); font-weight: 600; }
+
+  section.block { padding: 56px 0; }
+  section.block h2 { font-size: clamp(1.8rem, 3vw, 2.4rem); margin: 0 0 10px; }
+  section.block .sub { color: var(--muted); max-width: 60ch; margin: 0 0 32px; font-size: 1.05rem; }
+  .steps3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 2px solid var(--ink); }
+  .steps3 li { list-style: none; padding: 20px 24px 0 0; }
+  .steps3 .n { font-weight: 800; font-size: 2.6rem; letter-spacing: -0.04em; color: var(--cobalt); line-height: 1; }
+  .steps3 h3 { margin: 10px 0 6px; font-size: 1.15rem; }
+  .steps3 p { margin: 0; color: var(--muted); }
+  .steps3 ol { margin: 0; padding: 0; }
+
+  .gets { display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: start; }
+  .gets dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 12px 20px; }
+  .gets dt { font-weight: 600; } .gets dd { margin: 0; color: var(--muted); }
+  .works { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .works span { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 4px 12px; font-size: .9rem; }
+
+  .price-teaser { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .price-teaser .panel { display: grid; gap: 4px; }
+  .price-teaser .big { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; }
+
+  .code { background: #121820; color: #DDE3EA; border-radius: var(--radius-m); padding: 20px; overflow-x: auto; font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .code .c { color: #8B96A5; } .code .s { color: #9FE0B8; }
+  .devs { display: grid; grid-template-columns: 1fr 1.3fr; gap: 40px; align-items: center; }
+
+  details.faq { border-bottom: 1px solid var(--line); padding: 14px 0; }
+  details.faq summary { cursor: pointer; font-weight: 600; font-size: 1.05rem; }
+  details.faq p { color: var(--muted); margin: 10px 0 0; max-width: 70ch; }
+
+  @media (max-width: 900px) {
+    .hero .wrap, .gets, .devs { grid-template-columns: 1fr; }
+    .steps3, .price-teaser { grid-template-columns: 1fr; }
+    .steps3 li { padding: 18px 0; border-bottom: 1px solid var(--line); }
+  }
+  @media (max-width: 520px) { .pipeline { grid-template-columns: 1fr; } .pipeline model-viewer { min-height: 260px; } }
+</style>
+</head>
+<body>
+<header class="nav" id="nav"></header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Describe it. Approve it. Download it in 3D.</h1>
+        <p class="lede">Type an idea or drop in a photo. Get a textured GLB model you can use in Blender, Unity, Unreal or AR, in about two minutes.</p>
+        <div class="ctas">
+          <a class="btn primary" href="/signup">Make your first model free</a>
+          <a class="btn ghost" href="/pricing">See pricing</a>
+        </div>
+        <p class="fine">{{SIGNUP_CREDITS}} free credits on sign-up, enough for one image and one model. No card needed.</p>
+      </div>
+
+      <div class="pipeline" aria-label="Example: from prompt to 3D model">
+        <div class="prompt"><b>Idea</b><span id="typed"></span><span class="caret" aria-hidden="true"></span></div>
+        <figure>
+          <img src="/static/assets/example-vase.png" alt="Generated reference image of a ceramic vase" width="512" height="512">
+          <figcaption><span>Reference image</span><span class="approved">Approved</span></figcaption>
+        </figure>
+        <figure class="stage3d">
+          <model-viewer src="/static/assets/example-vase.glb" camera-controls auto-rotate rotation-per-second="24deg"
+            shadow-intensity="0.9" exposure="1.1" environment-image="neutral" camera-orbit="30deg 70deg auto"
+            interaction-prompt="none" touch-action="pan-y" alt="Example 3D model of the vase, drag to rotate"></model-viewer>
+          <figcaption><span>3D model, drag to spin</span><span>GLB</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <h2>Three steps, and you stay in control</h2>
+      <p class="sub">You see the image before any 3D credits are spent, so you only pay for models you actually want.</p>
+      <ol class="steps3">
+        <li><div class="n">1</div><h3>Describe or upload</h3><p>Write what you want, pick a look (realistic, game asset, cartoon, low-poly), or upload your own photo or render.</p></li>
+        <li><div class="n">2</div><h3>Approve the image</h3><p>We generate a clean, single-object reference. Not quite right? Try another for 1 credit before committing.</p></li>
+        <li><div class="n">3</div><h3>Get the 3D model</h3><p>Microsoft TRELLIS.2 builds the shape and PBR materials. Inspect it in the browser, then download the GLB.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap gets">
+      <div>
+        <h2>What you download</h2>
+        <p class="sub">A single .glb file with geometry and baked textures, ready to drop into your project.</p>
+        <dl>
+          <dt>Detail</dt><dd>Fast (512), Balanced (1024) or Highest (1536) voxel resolution</dd>
+          <dt>Polygons</dt><dd>You set the budget, from 20k for mobile and web up to 1M for renders</dd>
+          <dt>Textures</dt><dd>PBR base colour, roughness and metallic, baked at 1K, 2K or 4K</dd>
+          <dt>Ownership</dt><dd>You own what you create and can use it commercially. See the <a href="/terms">Terms</a>.</dd>
+        </dl>
+        <div class="works"><span>Blender</span><span>Unity</span><span>Unreal</span><span>three.js</span><span>Godot</span><span>Shopify 3D</span><span>AR Quick Look (via USDZ)</span></div>
+      </div>
+      <div class="panel">
+        <h2>Best results come from</h2>
+        <p class="muted" style="margin:0 0 10px">One object, fully in frame, on a plain background. Our image step does this for you. For uploads:</p>
+        <ul class="muted" style="margin:0;padding-left:18px;line-height:1.7">
+          <li>Product shots, figurines, furniture, props, characters</li>
+          <li>A three-quarter view shows more of the shape than a flat front view</li>
+          <li>Avoid busy scenes, heavy shadows and cropped edges</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <h2>Pay for what you make</h2>
+      <p class="sub">Buy credits once, no subscription. Credits never expire, and failed generations are refunded automatically.</p>
+      <div class="price-teaser" id="price-teaser"></div>
+      <p style="margin-top:18px"><a href="/pricing">Compare packs and pay in ₹ or $</a></p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap devs">
+      <div>
+        <h2>Build it into your app</h2>
+        <p class="sub">The same pipeline over a REST API, billed from the same credits. Create a key in your account and send an image.</p>
+        <a class="btn ghost" href="/developers">Read the API docs</a>
+      </div>
+<pre class="code"><span class="c"># Image → 3D model</span>
+curl {{APP_URL}}/v1/models/upload \
+  -H <span class="s">"Authorization: Bearer c3d_live_…"</span> \
+  -F file=@chair.png -F resolution=1024
+
+<span class="c"># Poll until status is "done", then download output.glb_url</span>
+curl {{APP_URL}}/v1/generations/&lt;id&gt; \
+  -H <span class="s">"Authorization: Bearer c3d_live_…"</span></pre>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <h2>Questions</h2>
+      <details class="faq"><summary>How long does a model take?</summary><p>Usually one to three minutes. Images take a few seconds. You can leave the page; finished work appears in your gallery.</p></details>
+      <details class="faq"><summary>Can I sell or use the models commercially?</summary><p>Yes. You own the outputs you generate, subject to our Terms and Acceptable Use policy, for example you can't recreate trademarked characters or logos you don't have rights to.</p></details>
+      <details class="faq"><summary>What if a generation fails?</summary><p>Your credits are returned to your balance automatically, and the failure shows in your credit history.</p></details>
+      <details class="faq"><summary>Do my credits expire?</summary><p>No. Unused credits stay on your account. See the <a href="/refunds">refund policy</a> for unused purchases.</p></details>
+      <details class="faq"><summary>Which payment methods do you accept?</summary><p>UPI, cards, net banking and wallets through Razorpay in Indian rupees, and international cards through Stripe in US dollars.</p></details>
+    </div>
+  </section>
+</main>
+
+<footer class="footer" id="footer"></footer>
+<script src="/static/common.js"></script>
+<script>
+(async () => {
+  await boot({ active: "/" });
+  if (C3D.me) $$('a[href="/signup"]').forEach((a) => { a.href = "/app"; if (a.classList.contains("primary")) a.textContent = "Open the studio"; });
+  const c = C3D.config;
+  $("#price-teaser").innerHTML = [
+    ["1", "credit", "per reference image"],
+    [c.cost_model?.["1024"] ?? 10, "credits", "per 3D model at Balanced detail"],
+    [money(c.packs?.[0]?.inr ?? 49900, "INR"), "", `for ${c.packs?.[0]?.credits ?? 50} credits`],
+  ].map(([n, u, l]) => `<div class="panel"><span class="big">${n} <small style="font-size:1rem;font-weight:500">${u}</small></span><span class="muted">${l}</span></div>`).join("");
+  // Type the example prompt once.
+  const text = "A glazed ceramic vase, teal fading to sand, studio product shot";
+  const el = $("#typed"), reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) { el.textContent = text; return; }
+  let i = 0; const t = setInterval(() => { el.textContent = text.slice(0, ++i); if (i >= text.length) clearInterval(t); }, 32);
+})();
+</script>
+</body>
+</html>

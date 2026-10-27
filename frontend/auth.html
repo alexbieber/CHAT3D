@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{APP_NAME}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site.css">
+<style>
+  .auth { width: min(420px, 100% - 32px); margin: 64px auto; }
+  .auth h1 { font-size: 2rem; font-weight: 800; letter-spacing: -0.035em; margin: 0 0 6px; }
+  .auth .lead { color: var(--muted); margin: 0 0 24px; }
+  .auth form { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 24px; }
+  .auth .alt { text-align: center; margin-top: 18px; color: var(--muted); }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: .9rem; color: var(--muted); margin: 4px 0 16px; }
+  .check input { margin-top: 4px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .row a { font-size: .88rem; }
+  .err { color: var(--danger); font-size: .92rem; margin: 0 0 12px; }
+  .done { color: var(--ok); }
+</style>
+</head>
+<body>
+<header class="nav" id="nav"></header>
+<main class="auth">
+  <!-- sign up -->
+  <section data-view="signup" hidden>
+    <h1>Create your account</h1>
+    <p class="lead">You get {{SIGNUP_CREDITS}} free credits, enough for one image and one 3D model.</p>
+    <form id="signup-form" novalidate>
+      <p class="err" hidden></p>
+      <label class="field"><span>Name</span><input type="text" name="name" autocomplete="name" maxlength="120"></label>
+      <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
+      <label class="field"><span>Password</span><input type="password" name="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"></label>
+      <label class="check"><input type="checkbox" name="accept_terms" required> <span>I agree to the <a href="/terms" target="_blank">Terms</a>, <a href="/acceptable-use" target="_blank">Acceptable Use</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</span></label>
+      <button class="btn primary block" type="submit">Create account</button>
+    </form>
+    <p class="alt">Already have an account? <a href="/login">Sign in</a></p>
+  </section>
+
+  <!-- log in -->
+  <section data-view="login" hidden>
+    <h1>Welcome back</h1>
+    <p class="lead">Sign in to your studio.</p>
+    <form id="login-form" novalidate>
+      <p class="err" hidden></p>
+      <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
+      <div class="field"><div class="row"><label for="login-pw" style="color:var(--muted);font-size:.92rem">Password</label><a href="/forgot">Forgot password?</a></div>
+        <input id="login-pw" type="password" name="password" autocomplete="current-password" required></div>
+      <button class="btn primary block" type="submit">Sign in</button>
+    </form>
+    <p class="alt">New here? <a href="/signup">Create an account</a></p>
+  </section>
+
+  <!-- forgot -->
+  <section data-view="forgot" hidden>
+    <h1>Reset your password</h1>
+    <p class="lead">We'll email you a link to set a new one.</p>
+    <form id="forgot-form" novalidate>
+      <p class="err" hidden></p>
+      <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
+      <button class="btn primary block" type="submit">Send reset link</button>
+      <p class="done" hidden style="margin:14px 0 0"></p>
+    </form>
+    <p class="alt"><a href="/login">Back to sign in</a></p>
+  </section>
+
+  <!-- reset -->
+  <section data-view="reset" hidden>
+    <h1>Choose a new password</h1>
+    <p class="lead">This signs you out on other devices.</p>
+    <form id="reset-form" novalidate>
+      <p class="err" hidden></p>
+      <label class="field"><span>New password</span><input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+      <button class="btn primary block" type="submit">Save password</button>
+    </form>
+  </section>
+</main>
+<footer class="footer" id="footer"></footer>
+<script src="/static/common.js"></script>
+<script>
+(async () => {
+  await boot();
+  const view = location.pathname.slice(1) || "login";
+  const params = new URLSearchParams(location.search);
+  const next = params.get("next");
+  const dest = next && next.startsWith("/") && !next.startsWith("//") ? next : "/app";
+  if (C3D.me && (view === "login" || view === "signup")) { location.href = dest; return; }
+  $(`[data-view="${view}"]`).hidden = false;
+  document.title = { signup: "Create account", login: "Sign in", forgot: "Reset password", reset: "New password" }[view] + " — " + (C3D.config.app_name || "Chat3D");
+  $$('a[href="/login"], a[href="/signup"]').forEach((a) => next && (a.href += `?next=${encodeURIComponent(next)}`));
+
+  function wire(id, fn) {
+    const form = $(id);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const err = $(".err", form), btn = $("button[type=submit]", form);
+      err.hidden = true;
+      if (!form.checkValidity()) { err.textContent = form.querySelector(":invalid")?.validationMessage || "Check the form."; err.hidden = false; form.querySelector(":invalid")?.focus(); return; }
+      btn.disabled = true;
+      try { await fn(Object.fromEntries(new FormData(form)), form); }
+      catch (e2) { err.textContent = e2.message; err.hidden = false; }
+      finally { btn.disabled = false; }
+    });
+  }
+  wire("#signup-form", async (d) => {
+    await api("/api/auth/signup", { method: "POST", json: { ...d, accept_terms: !!d.accept_terms } });
+    location.href = dest;
+  });
+  wire("#login-form", async (d) => { await api("/api/auth/login", { method: "POST", json: d }); location.href = dest; });
+  wire("#forgot-form", async (d, form) => {
+    const r = await api("/api/auth/forgot", { method: "POST", json: d });
+    const ok = $(".done", form); ok.textContent = r.message; ok.hidden = false;
+  });
+  wire("#reset-form", async (d) => {
+    await api("/api/auth/reset", { method: "POST", json: { token: params.get("token") || "", password: d.password } });
+    location.href = "/app";
+  });
+})();
+</script>
+</body>
+</html>

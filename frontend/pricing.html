@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pricing — {{APP_NAME}}</title>
+<meta name="description" content="Credit packs for {{APP_NAME}}. Pay once, no subscription, credits never expire.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site.css">
+<style>
+  .head { padding: 56px 0 28px; display: flex; justify-content: space-between; align-items: end; gap: 24px; flex-wrap: wrap; }
+  .head h1 { font-size: clamp(2.2rem, 4.5vw, 3.4rem); font-weight: 800; letter-spacing: -0.04em; margin: 0 0 10px; }
+  .head p { color: var(--muted); margin: 0; max-width: 52ch; font-size: 1.08rem; }
+  .cur { display: inline-grid; grid-auto-flow: column; border: 1px solid var(--line); border-radius: var(--radius-s); overflow: hidden; background: var(--paper); }
+  .cur button { border: 0; background: none; padding: 8px 14px; cursor: pointer; font-weight: 500; }
+  .cur button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .packs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .pack { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-l); padding: 26px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .pack.popular { border: 2px solid var(--cobalt); }
+  .pack .tag { position: absolute; top: -12px; left: 22px; background: var(--cobalt); color: var(--cobalt-ink); font-size: .8rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .pack h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+  .pack .credits { font-size: 3rem; font-weight: 800; letter-spacing: -0.04em; line-height: 1; margin-top: 10px; }
+  .pack .credits small { font-size: 1rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+  .pack .price { font-size: 1.4rem; font-weight: 600; margin-top: 6px; }
+  .pack .per { color: var(--muted); font-size: .9rem; }
+  .pack ul { padding-left: 18px; color: var(--muted); margin: 14px 0 20px; line-height: 1.7; flex: 1; }
+  .costs { margin-top: 48px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .notice { margin-top: 18px; font-size: .9rem; color: var(--muted); }
+  @media (max-width: 860px) { .packs, .costs { grid-template-columns: 1fr; } }
+</style>
+<script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
+</head>
+<body>
+<header class="nav" id="nav"></header>
+<main class="wrap">
+  <div class="head">
+    <div>
+      <h1>Buy credits, use them anytime</h1>
+      <p>No subscription. Credits never expire, and anything that fails is refunded to your balance automatically.</p>
+    </div>
+    <div class="cur" role="group" aria-label="Currency">
+      <button id="cur-inr" aria-pressed="true">₹ INR</button><button id="cur-usd" aria-pressed="false">$ USD</button>
+    </div>
+  </div>
+
+  <div class="packs" id="packs"></div>
+  <p class="notice" id="gateway-note"></p>
+
+  <div class="costs">
+    <div class="panel">
+      <h2>What things cost</h2>
+      <table class="data">
+        <thead><tr><th>Action</th><th class="num">Credits</th></tr></thead>
+        <tbody id="cost-rows"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Good to know</h2>
+      <ul class="muted" style="margin:0;padding-left:18px;line-height:1.75">
+        <li>New accounts get {{SIGNUP_CREDITS}} free credits.</li>
+        <li>You approve each image before spending 3D credits.</li>
+        <li>The same credits work in the studio and the API.</li>
+        <li>Prices include applicable taxes. A receipt is emailed after payment.</li>
+        <li>Unused credits from a purchase in the last 14 days can be refunded. See the <a href="/refunds">refund policy</a>.</li>
+      </ul>
+    </div>
+  </div>
+</main>
+<footer class="footer" id="footer"></footer>
+<script src="/static/common.js"></script>
+<script>
+(async () => {
+  const { cfg } = await boot({ active: "/pricing" });
+  let currency = (navigator.language || "").endsWith("IN") || Intl.DateTimeFormat().resolvedOptions().timeZone === "Asia/Calcutta" || Intl.DateTimeFormat().resolvedOptions().timeZone === "Asia/Kolkata" ? "INR" : "USD";
+  if (!cfg.razorpay && cfg.stripe) currency = "USD";
+  if (cfg.razorpay && !cfg.stripe) currency = "INR";
+  const model = cfg.cost_model || {};
+
+  $("#cost-rows").innerHTML = [
+    ["Reference image from an idea", cfg.cost_image],
+    ["3D model, Fast (512)", model["512"]],
+    ["3D model, Balanced (1024)", model["1024"]],
+    ["3D model, Highest (1536)", model["1536"]],
+  ].map(([a, c]) => `<tr><td>${a}</td><td class="num">${c}</td></tr>`).join("");
+
+  function render() {
+    $("#cur-inr").setAttribute("aria-pressed", currency === "INR");
+    $("#cur-usd").setAttribute("aria-pressed", currency === "USD");
+    const key = currency === "INR" ? "inr" : "usd";
+    const enabled = currency === "INR" ? cfg.razorpay : cfg.stripe;
+    $("#packs").innerHTML = cfg.packs.map((p) => {
+      const models = Math.floor(p.credits / (model["1024"] || 10));
+      const per = p[key] / p.credits;
+      return `<article class="pack ${p.popular ? "popular" : ""}">
+        ${p.popular ? '<span class="tag">Most popular</span>' : ""}
+        <h2>${esc(p.name)}</h2>
+        <div class="credits">${p.credits} <small>credits</small></div>
+        <div class="price">${money(p[key], currency)}</div>
+        <div class="per">${money(Math.round(per), currency)} per credit</div>
+        <ul><li>About ${models} models at Balanced detail</li><li>Or ${p.credits} reference images</li><li>Works with the API</li></ul>
+        <button class="btn ${p.popular ? "primary" : "ghost"} block" data-pack="${esc(p.id)}" ${enabled ? "" : "disabled"}>Buy ${p.credits} credits</button>
+      </article>`;
+    }).join("");
+    $("#gateway-note").textContent = enabled
+      ? (currency === "INR" ? "Pay with UPI, cards, net banking or wallets via Razorpay." : "Pay with any major card via Stripe.")
+      : `Payments in ${currency} aren't available yet.` + ((currency === "INR" ? cfg.stripe : cfg.razorpay) ? " Switch currency to pay." : "");
+    $$("[data-pack]").forEach((b) => (b.onclick = () => buy(b.dataset.pack, b)));
+  }
+  $("#cur-inr").onclick = () => { currency = "INR"; render(); };
+  $("#cur-usd").onclick = () => { currency = "USD"; render(); };
+  render();
+  if (new URLSearchParams(location.search).get("checkout") === "cancelled") toast("Checkout cancelled. You weren't charged.");
+
+  async function buy(packId, btn) {
+    if (!C3D.me) { location.href = `/signup?next=${encodeURIComponent("/pricing")}`; return; }
+    btn.disabled = true;
+    try {
+      if (currency === "USD") {
+        const { url } = await api("/api/billing/stripe/checkout", { method: "POST", json: { pack_id: packId } });
+        location.href = url;
+        return;
+      }
+      const o = await api("/api/billing/razorpay/order", { method: "POST", json: { pack_id: packId } });
+      if (!window.Razorpay) throw new Error("Razorpay checkout didn't load. Check your connection and try again.");
+      const rzp = new Razorpay({
+        key: o.key_id, order_id: o.order_id, amount: o.amount, currency: o.currency, name: o.name,
+        description: o.description, prefill: o.prefill, theme: { color: "#2D46F0" },
+        handler: async (resp) => {
+          try {
+            const r = await api("/api/billing/razorpay/verify", { method: "POST", json: resp });
+            setCredits(r.credits);
+            toast(`Payment received. ${r.payment.credits} credits added.`, true);
+            setTimeout(() => (location.href = "/app"), 1400);
+          } catch (e) { toast(e.message); }
+        },
+        modal: { ondismiss: () => (btn.disabled = false) },
+      });
+      rzp.on("payment.failed", (r) => toast(r.error?.description || "Payment failed. You weren't charged."));
+      rzp.open();
+    } catch (e) { toast(e.message); btn.disabled = false; }
+  }
+})();
+</script>
+</body>
+</html>

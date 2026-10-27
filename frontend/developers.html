@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API — {{APP_NAME}}</title>
+<meta name="description" content="REST API for turning images and ideas into textured GLB models.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site.css">
+<style>
+  .doc { display: grid; grid-template-columns: 220px 1fr; gap: 40px; padding: 44px 0; }
+  .toc { position: sticky; top: 84px; align-self: start; display: grid; gap: 6px; font-size: .94rem; }
+  .toc a { color: var(--muted); text-decoration: none; } .toc a:hover { color: var(--ink); }
+  .doc h1 { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.04em; margin: 0 0 10px; }
+  .doc h2 { font-size: 1.4rem; margin: 44px 0 10px; padding-top: 10px; }
+  .doc p, .doc li { line-height: 1.65; max-width: 72ch; }
+  .ep { display: inline-flex; gap: 10px; align-items: center; font: 600 15px ui-monospace, Menlo, monospace; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 6px 10px; }
+  .ep .m { color: var(--cobalt); }
+  pre { background: #121820; color: #DDE3EA; border-radius: var(--radius-m); padding: 18px; overflow-x: auto; font: 13.5px/1.6 ui-monospace, Menlo, monospace; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: .92em; }
+  table.data code { white-space: nowrap; }
+  @media (max-width: 860px) { .doc { grid-template-columns: 1fr; } .toc { position: static; } }
+</style>
+</head>
+<body>
+<header class="nav" id="nav"></header>
+<main class="wrap doc">
+  <nav class="toc" aria-label="On this page">
+    <a href="#auth">Authentication</a><a href="#models">Image → 3D</a><a href="#images">Idea → image</a>
+    <a href="#poll">Get a result</a><a href="#credits">Credits &amp; errors</a><a href="#example">Full example</a><a href="/api/docs">OpenAPI reference</a>
+  </nav>
+  <article>
+    <h1>API</h1>
+    <p>Everything the studio does is available over REST. Requests are asynchronous: you start a generation, then poll it until it's <code>done</code>. Usage is billed from your account's credits at the same rates as the studio.</p>
+
+    <h2 id="auth">Authentication</h2>
+    <p>Create a key under <a href="/account#keys">Account → API keys</a> and send it as a bearer token. Keys are shown once; revoke any key you think has leaked.</p>
+    <pre>Authorization: Bearer c3d_live_…</pre>
+    <div class="ep"><span class="m">GET</span>/v1/account</div>
+    <p>Returns your email, credit balance and current prices.</p>
+
+    <h2 id="models">Image → 3D model</h2>
+    <div class="ep"><span class="m">POST</span>/v1/models/upload</div>
+    <p>Multipart upload. Fields: <code>file</code> (PNG, JPG or WEBP, up to 15 MB) and the options below.</p>
+    <div class="ep"><span class="m">POST</span>/v1/models</div>
+    <p>JSON body with exactly one image source: <code>image_url</code> (public https), <code>image_base64</code>, or <code>image_generation_id</code> from <code>/v1/images</code>.</p>
+    <div class="table-scroll"><table class="data">
+      <thead><tr><th>Option</th><th>Default</th><th>Values</th></tr></thead>
+      <tbody>
+        <tr><td><code>resolution</code></td><td>1024</td><td>512 (fast), 1024, 1536 (highest). Sets the credit cost.</td></tr>
+        <tr><td><code>decimation_target</code></td><td>300000</td><td>Target polygon count, 20,000 to 1,000,000</td></tr>
+        <tr><td><code>texture_size</code></td><td>2048</td><td>1024, 2048 or 4096</td></tr>
+        <tr><td><code>seed</code></td><td>random</td><td>Integer, for reproducible results</td></tr>
+      </tbody></table></div>
+    <p>Backgrounds are removed automatically. For best results send one object, fully in frame.</p>
+
+    <h2 id="images">Idea → image</h2>
+    <div class="ep"><span class="m">POST</span>/v1/images</div>
+    <pre>{ "prompt": "a brass steampunk owl", "style": "stylized", "optimize_for_3d": true }</pre>
+    <p>Styles: <code>realistic</code>, <code>stylized</code>, <code>cartoon</code>, <code>lowpoly</code>, <code>clay</code>, <code>figurine</code>. With <code>optimize_for_3d</code> the image is steered toward a single, centred object on a clean background. Pass the finished id to <code>/v1/models</code> as <code>image_generation_id</code>.</p>
+
+    <h2 id="poll">Get a result</h2>
+    <div class="ep"><span class="m">GET</span>/v1/generations/{id}</div>
+    <p>Poll every 2–5 seconds. <code>status</code> moves from <code>queued</code> to <code>running</code> to <code>done</code> or <code>failed</code>. When done, <code>output.glb_url</code> (or <code>output.image_url</code>) is a signed link valid for an hour; fetch the generation again for a fresh link.</p>
+<pre>{
+  "id": "5f0c…", "kind": "model", "status": "done", "progress": 100,
+  "cost_credits": 10,
+  "output": { "glb_url": "https://…", "download_url": "https://…", "size_mb": 7.4 }
+}</pre>
+
+    <h2 id="credits">Credits and errors</h2>
+    <p>Credits are deducted when a generation starts and returned automatically if it fails (<code>refunded: true</code>). Errors return JSON with a <code>detail</code> message.</p>
+    <div class="table-scroll"><table class="data"><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody>
+      <tr><td>400</td><td>Invalid input, for example an unreadable image or bad option</td></tr>
+      <tr><td>401</td><td>Missing, invalid or revoked API key</td></tr>
+      <tr><td>402</td><td>Not enough credits. <a href="/pricing">Buy more</a></td></tr>
+      <tr><td>429</td><td>Too many requests (60 per minute) or too many generations running at once</td></tr>
+    </tbody></table></div>
+
+    <h2 id="example">Full example (Python)</h2>
+<pre>import time, requests
+API = "{{APP_URL}}"
+H = {"Authorization": "Bearer c3d_live_…"}
+
+with open("chair.png", "rb") as f:
+    gen = requests.post(f"{API}/v1/models/upload", headers=H,
+                        files={"file": f}, data={"resolution": "1024"}).json()
+
+while gen["status"] in ("queued", "running"):
+    time.sleep(3)
+    gen = requests.get(f"{API}/v1/generations/{gen['id']}", headers=H).json()
+
+if gen["status"] == "done":
+    open("chair.glb", "wb").write(requests.get(gen["output"]["glb_url"]).content)
+else:
+    print("Failed:", gen["error"])</pre>
+  </article>
+</main>
+<footer class="footer" id="footer"></footer>
+<script src="/static/common.js"></script>
+<script>boot({ active: "/developers" });</script>
+</body>
+</html>

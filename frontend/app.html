@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio — {{APP_NAME}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site.css">
+<link rel="stylesheet" href="/static/studio.css">
+<script type="module" src="/static/vendor/model-viewer.min.js"></script>
+</head>
+<body class="studio-body">
+<header class="nav" id="nav"></header>
+<div class="studio">
+  <aside class="rail">
+    <div class="modes" role="tablist" aria-label="How do you want to start?">
+      <button role="tab" id="tab-idea" aria-selected="true" aria-controls="flow-idea">From an idea</button>
+      <button role="tab" id="tab-upload" aria-selected="false" aria-controls="flow-upload">From an image</button>
+    </div>
+
+    <section id="flow-idea" role="tabpanel" aria-labelledby="tab-idea">
+      <ol class="steps">
+        <li class="step" data-step="describe">
+          <h2><span class="n">1</span>Describe it</h2>
+          <form id="idea-form">
+            <label for="idea" class="sr">Your idea</label>
+            <textarea id="idea" rows="4" maxlength="1000" placeholder="A brass steampunk owl with gear wings, perched on a small book" required></textarea>
+            <fieldset class="styles"><legend>Look</legend><div id="style-chips" class="chips"></div></fieldset>
+            <label class="check"><input type="checkbox" id="opt3d" checked> Shape the image for 3D (single object, clean background)</label>
+            <button type="submit" class="btn primary block" id="gen-image-btn">Generate image <span class="cost" id="cost-image"></span></button>
+          </form>
+        </li>
+        <li class="step" data-step="approve">
+          <h2><span class="n">2</span>Approve the image</h2>
+          <p class="hint" id="approve-hint">Your image appears on the stage. Approve it to build the 3D model, or try another.</p>
+          <div class="approve-actions" hidden id="approve-actions">
+            <button class="btn primary block" id="approve-btn">Approve and build 3D <span class="cost cost-model"></span></button>
+            <button class="btn ghost block" id="retry-btn">Try another <span class="cost" id="cost-retry"></span></button>
+          </div>
+        </li>
+        <li class="step" data-step="build">
+          <h2><span class="n">3</span>Build the 3D model</h2>
+          <p class="hint">Usually 1–3 minutes. You can leave; it'll be in your gallery.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section id="flow-upload" role="tabpanel" aria-labelledby="tab-upload" hidden>
+      <label class="drop" id="drop" for="file">
+        <input type="file" id="file" accept="image/png,image/jpeg,image/webp">
+        <strong>Drop an image here</strong>
+        <span>or click to choose a PNG, JPG or WEBP up to 15 MB. One object, fully in frame, works best.</span>
+      </label>
+      <button class="btn primary block" id="upload-build-btn" disabled>Build 3D model <span class="cost cost-model"></span></button>
+    </section>
+
+    <details class="settings">
+      <summary>Model settings</summary>
+      <div class="field">
+        <span id="res-label">Detail</span>
+        <div class="seg" role="radiogroup" aria-labelledby="res-label">
+          <label><input type="radio" name="res" value="512"> Fast</label>
+          <label><input type="radio" name="res" value="1024" checked> Balanced</label>
+          <label><input type="radio" name="res" value="1536"> Highest</label>
+        </div>
+      </div>
+      <label class="field"><span>Polygon budget <output id="dec-out">300k</output></span>
+        <input type="range" id="dec" min="20000" max="1000000" step="10000" value="300000"></label>
+      <label class="field"><span>Texture size</span>
+        <select id="tex"><option value="1024">1024 px</option><option value="2048" selected>2048 px</option><option value="4096">4096 px</option></select></label>
+      <label class="field"><span>Seed (blank = random)</span><input type="number" id="seed" min="0" placeholder="Random"></label>
+    </details>
+  </aside>
+
+  <main class="stage" id="stage" aria-live="polite">
+    <div class="stage-bar">
+      <div class="seg small" role="tablist" aria-label="View">
+        <button role="tab" id="view-create" aria-pressed="true">Create</button>
+        <button role="tab" id="view-gallery" aria-pressed="false">My gallery</button>
+      </div>
+    </div>
+
+    <div class="view empty" id="view-empty">
+      <div class="plinth" aria-hidden="true"></div>
+      <p>Your model will stand here.</p>
+    </div>
+
+    <figure class="view review" id="view-image" hidden>
+      <img id="stage-img" alt="Reference image">
+      <figcaption id="img-caption"></figcaption>
+    </figure>
+
+    <div class="view building" id="view-build" hidden>
+      <div class="turntable"><img id="build-img" alt=""></div>
+      <div class="meter">
+        <p id="build-stage">Starting</p>
+        <div class="bar"><span id="build-bar"></span></div>
+        <p class="elapsed" id="build-elapsed"></p>
+      </div>
+    </div>
+
+    <div class="view result" id="view-model" hidden>
+      <model-viewer id="viewer" camera-controls auto-rotate shadow-intensity="0.8" exposure="1.05"
+        environment-image="neutral" touch-action="pan-y" alt="Your 3D model, drag to rotate"></model-viewer>
+      <div class="result-bar">
+        <p id="model-meta"></p>
+        <a class="btn primary" id="download">Download GLB</a>
+        <button class="btn ghost" id="new-btn">Make another</button>
+      </div>
+    </div>
+
+    <section class="view gallery" id="view-gallery-panel" hidden>
+      <div class="gallery-head">
+        <h2>My gallery</h2>
+        <div class="seg small" id="gal-filter">
+          <button data-k="" aria-pressed="true">All</button><button data-k="model" aria-pressed="false">3D models</button><button data-k="image" aria-pressed="false">Images</button>
+        </div>
+      </div>
+      <div class="grid" id="gal-grid"></div>
+      <button class="btn ghost" id="gal-more" hidden>Load more</button>
+    </section>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

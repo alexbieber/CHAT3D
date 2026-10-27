@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — {{APP_NAME}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site.css">
+</head>
+<body>
+<header class="nav" id="nav"></header>
+<main class="wrap"><article class="prose">
+<h1>Privacy Policy</h1>
+<p class="updated">Last updated: 27 October 2026</p>
+
+<p>This policy explains what personal data {{COMPANY_NAME}} ("we") collects through {{APP_NAME}}, why, and your choices. We act as the data fiduciary / controller for this data.</p>
+<h2>What we collect</h2>
+<ul>
+<li><strong>Account data:</strong> your email, name and a hashed password.</li>
+<li><strong>Content:</strong> the prompts and images you submit and the images and 3D models generated for you.</li>
+<li><strong>Payments:</strong> purchase records (pack, amount, status, gateway reference). Card, UPI and bank details are collected by Razorpay or Stripe, not by us.</li>
+<li><strong>Usage and technical data:</strong> generation history, credit transactions, API key usage times, IP address and browser information in server logs.</li>
+</ul>
+<h2>How we use it</h2>
+<p>To provide the Service, process payments, prevent fraud and abuse, provide support, send transactional emails such as receipts and password resets, and meet legal obligations. We do not sell your data, use it for advertising, or use your content to train AI models.</p>
+<h2>Who we share it with</h2>
+<p>Only service providers that help us run the Service, under contracts that limit their use of your data:</p>
+<ul>
+<li>fal.ai (Features &amp; Labels, Inc., USA): runs the image and 3D generation models on your Inputs.</li>
+<li>Razorpay (India) and Stripe (USA): payment processing.</li>
+<li>Amazon Web Services (India region): hosting and file storage.</li>
+<li>Our email delivery provider: transactional email.</li>
+</ul>
+<p>Some providers process data outside India. We may also disclose data where required by law.</p>
+<h2>Retention</h2>
+<p>We keep account data and your generations while your account is open. When you ask us to delete your account we delete your content within 30 days, and keep payment records only as long as tax and accounting law requires.</p>
+<h2>Your rights</h2>
+<p>You can access, correct or delete your personal data, withdraw consent, and nominate someone to exercise your rights, including under India's Digital Personal Data Protection Act, 2023. Email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> from your account address. If you're unhappy with our response you may complain to the relevant data protection authority.</p>
+<h2>Security</h2>
+<p>Passwords are hashed with bcrypt, API keys are stored only as hashes, connections are encrypted with HTTPS, and generated files are served through expiring signed links.</p>
+<h2>Cookies</h2>
+<p>We use one essential cookie to keep you signed in. We do not use advertising or tracking cookies. Payment pages from Razorpay or Stripe may set their own cookies.</p>
+<h2>Contact</h2>
+<p>Grievance officer: {{COMPANY_NAME}}, {{COMPANY_ADDRESS}}. Email: <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
+</article></main>
+<footer class="footer" id="footer"></footer>
+<script src="/static/common.js"></script>
+<script>boot();</script>
+</body>
+</html>

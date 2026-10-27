@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — {{APP_NAME}}</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/site.css">
+<style>
+  .page { padding: 32px 0; display: grid; gap: 20px; }
+  .page h1 { margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: -0.035em; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .kpi { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 16px 18px; }
+  .kpi .v { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .kpi .l { color: var(--muted); font-size: .88rem; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+  .tabs button { border: 0; background: none; padding: 10px 14px; cursor: pointer; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--cobalt); }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar input { max-width: 320px; }
+  td .actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .err { color: var(--danger); font-size: .85rem; max-width: 280px; }
+</style>
+</head>
+<body>
+<header class="nav" id="nav"></header>
+<main class="wrap page">
+  <h1>Admin</h1>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="users">Users</button>
+    <button role="tab" aria-selected="false" data-tab="payments">Payments</button>
+    <button role="tab" aria-selected="false" data-tab="gens">Generations</button>
+  </div>
+
+  <section class="panel" data-panel="users">
+    <form class="toolbar" id="user-search"><input type="search" id="uq" placeholder="Search email or name"><button class="btn ghost" type="submit">Search</button></form>
+    <div class="table-scroll"><table class="data"><thead><tr><th>Email</th><th>Joined</th><th class="num">Credits</th><th class="num">Purchases</th><th>Status</th><th></th></tr></thead><tbody id="user-rows"></tbody></table></div>
+  </section>
+
+  <section class="panel" data-panel="payments" hidden>
+    <div class="table-scroll"><table class="data"><thead><tr><th>Date</th><th>User</th><th>Gateway</th><th class="num">Credits</th><th class="num">Amount</th><th>Status</th><th>Gateway ref</th><th></th></tr></thead><tbody id="pay-rows"></tbody></table></div>
+    <p class="muted" style="font-size:.88rem">Issue money refunds in the Razorpay or Stripe dashboard, then mark them here to remove unspent credits.</p>
+  </section>
+
+  <section class="panel" data-panel="gens" hidden>
+    <div class="toolbar"><select id="gstatus" style="max-width:200px"><option value="">All statuses</option><option>running</option><option>queued</option><option>done</option><option>failed</option></select></div>
+    <div class="table-scroll"><table class="data"><thead><tr><th>Date</th><th>User</th><th>Kind</th><th>Status</th><th class="num">Credits</th><th>Detail</th><th></th></tr></thead><tbody id="gen-rows"></tbody></table></div>
+  </section>
+</main>
+<script src="/static/common.js"></script>
+<script>
+const ST = { done: "ok", paid: "ok", failed: "bad", running: "wait", queued: "wait", refunded: "" };
+const badge = (s) => `<span class="badge ${ST[s] ?? ""}">${esc(s)}</span>`;
+
+async function loadStats() {
+  const s = await api("/api/admin/stats");
+  const rev = Object.values(s.revenue).map((r) => r.display).join(" + ") || "₹0";
+  const r30 = Object.values(s.revenue_30d).join(" + ") || "₹0";
+  const g = s.generations;
+  const k = [
+    [rev, "Revenue, all time"], [r30, "Revenue, last 30 days"],
+    [`$${s.est_provider_cost_30d_usd.toFixed(2)}`, "Est. GPU cost, last 30 days"],
+    [s.users, `Users (${s.users_30d} new in 30 days)`],
+    [(g["model:done"] || 0), `3D models made (${g["model:failed"] || 0} failed)`],
+    [(g["image:done"] || 0), "Images made"], [s.active_jobs, "Running now"], [s.credits_outstanding, "Unspent credits held by users"],
+  ];
+  $("#kpis").innerHTML = k.map(([v, l]) => `<div class="kpi"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join("");
+}
+
+async function loadUsers(q = "") {
+  const r = await api(`/api/admin/users?limit=100${q ? `&q=${encodeURIComponent(q)}` : ""}`);
+  $("#user-rows").innerHTML = r.items.map((u) => `<tr>
+    <td>${esc(u.email)}${u.is_admin ? ' <span class="badge">admin</span>' : ""}<br><span class="muted" style="font-size:.85rem">${esc(u.name)}</span></td>
+    <td>${fmtDate(u.created_at)}</td><td class="num">${u.credits}</td><td class="num">${u.purchases}</td>
+    <td>${u.is_active ? badge("done").replace(">done<", ">active<") : badge("failed").replace(">failed<", ">suspended<")}</td>
+    <td><div class="actions"><button class="btn ghost small" data-adj="${u.id}">Adjust credits</button>
+      ${u.is_admin ? "" : `<button class="btn ${u.is_active ? "danger" : "ghost"} small" data-act="${u.id}" data-to="${!u.is_active}">${u.is_active ? "Suspend" : "Reactivate"}</button>`}</div></td></tr>`).join("")
+    || `<tr><td colspan="6" class="empty-note">No users found.</td></tr>`;
+  $$("[data-adj]").forEach((b) => (b.onclick = async () => {
+    const amount = parseInt(prompt("Credits to add (use a negative number to remove):", "10"), 10);
+    if (!amount) return;
+    const note = prompt("Reason (shown in the user's history):", "Goodwill credit");
+    if (!note) return;
+    try { await api(`/api/admin/users/${b.dataset.adj}/credits`, { method: "POST", json: { amount, note } }); toast("Credits updated.", true); loadUsers($("#uq").value); loadStats(); }
+    catch (e) { toast(e.message); }
+  }));
+  $$("[data-act]").forEach((b) => (b.onclick = async () => {
+    if (b.dataset.to === "false" && !confirm("Suspend this user? They'll be signed out and blocked.")) return;
+    try { await api(`/api/admin/users/${b.dataset.act}/active?active=${b.dataset.to}`, { method: "POST" }); loadUsers($("#uq").value); }
+    catch (e) { toast(e.message); }
+  }));
+}
+
+async function loadPayments() {
+  const r = await api("/api/admin/payments");
+  $("#pay-rows").innerHTML = r.items.map((p) => `<tr><td>${fmtDate(p.created_at)}</td><td>${esc(p.user_email)}</td><td>${esc(p.provider)}</td>
+    <td class="num">${p.credits}</td><td class="num">${esc(p.amount_display)}</td><td>${badge(p.status)}</td><td><code style="font-size:.8rem">${esc(p.provider_payment_id || "")}</code></td>
+    <td>${p.status === "paid" ? `<button class="btn ghost small" data-refund="${p.id}">Mark refunded</button>` : ""}</td></tr>`).join("")
+    || `<tr><td colspan="8" class="empty-note">No payments yet.</td></tr>`;
+  $$("[data-refund]").forEach((b) => (b.onclick = async () => {
+    if (!confirm("Mark as refunded and remove the unspent credits from this purchase? Refund the money in the gateway dashboard separately.")) return;
+    try { const r2 = await api(`/api/admin/payments/${b.dataset.refund}/mark-refunded`, { method: "POST" }); toast(`Marked refunded. ${r2.credits_removed} credits removed.`, true); loadPayments(); loadStats(); }
+    catch (e) { toast(e.message); }
+  }));
+}
+
+async function loadGens() {
+  const s = $("#gstatus").value;
+  const r = await api(`/api/admin/generations?limit=100${s ? `&status=${s}` : ""}`);
+  $("#gen-rows").innerHTML = r.items.map((g) => `<tr><td>${fmtDate(g.created_at)}</td><td>${esc(g.user_email)}</td>
+    <td>${g.kind === "model" ? "3D " + esc(g.params?.resolution || "") : "Image"} <span class="muted">${g.source === "api" ? "(API)" : ""}</span></td>
+    <td>${badge(g.status)}${g.refunded ? ' <span class="badge">refunded</span>' : ""}</td><td class="num">${g.cost_credits}</td>
+    <td>${g.error ? `<div class="err">${esc(g.error)}</div>` : esc(g.prompt || "")}${g.output?.glb_url ? ` <a href="${esc(g.output.download_url)}">GLB</a>` : ""}${g.output?.image_url ? ` <a href="${esc(g.output.image_url)}" target="_blank">image</a>` : ""}</td>
+    <td>${!g.refunded && g.status === "done" ? `<button class="btn ghost small" data-grefund="${g.id}">Refund credits</button>` : ""}</td></tr>`).join("")
+    || `<tr><td colspan="7" class="empty-note">Nothing yet.</td></tr>`;
+  $$("[data-grefund]").forEach((b) => (b.onclick = async () => {
+    if (!confirm("Return this generation's credits to the user? Use for poor-quality results.")) return;
+    try { await api(`/api/admin/generations/${b.dataset.grefund}/refund`, { method: "POST" }); toast("Credits refunded.", true); loadGens(); }
+    catch (e) { toast(e.message); }
+  }));
+}
+
+(async () => {
+  try { await boot({ active: "/admin", requireAuth: true, requireAdmin: true }); } catch { return; }
+  loadStats(); loadUsers();
+  $("#user-search").onsubmit = (e) => { e.preventDefault(); loadUsers($("#uq").value); };
+  $("#gstatus").onchange = loadGens;
+  const loaders = { users: () => loadUsers($("#uq").value), payments: loadPayments, gens: loadGens };
+  $$(".tabs button").forEach((b) => (b.onclick = () => {
+    $$(".tabs button").forEach((x) => x.setAttribute("aria-selected", x === b));
+    $$("[data-panel]").forEach((p) => (p.hidden = p.dataset.panel !== b.dataset.tab));
+    loaders[b.dataset.tab]();
+  }));
+})();
+</script>
+</body>
+</html>
